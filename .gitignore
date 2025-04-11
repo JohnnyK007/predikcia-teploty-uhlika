@@ -1,0 +1,7 @@
+.idea/
+.venv/
+.venv1/
+__pycache__/
+*.pyc
+Data/
+qodana.yaml
