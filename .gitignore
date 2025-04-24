@@ -5,3 +5,5 @@ __pycache__/
 *.pyc
 Data/
 qodana.yaml
+Predikcia OLD.py
+Predikcia OLDER.py
