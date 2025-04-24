@@ -12,7 +12,8 @@ from sklearn.svm import SVR
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler
-#from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import RandomizedSearchCV, GridSearchCV
+from sklearn.pipeline import Pipeline
 
 ### --- Importy z lokálneho modulu ---
 from nastavenia import (
@@ -26,7 +27,7 @@ from nastavenia import (
 ### --- Importy GUI komponentov ---
 from PySide6.QtWidgets import (
     QApplication, QErrorMessage, QFileDialog, QGroupBox, QMainWindow, QMessageBox,
-    QScrollArea, QSplitter, QTextEdit, QVBoxLayout, QWidget
+    QScrollArea, QSplitter, QTextEdit, QVBoxLayout, QWidget, QProgressDialog
 )
 from PySide6.QtGui import QPalette, QAction
 from PySide6.QtCore import Qt
@@ -61,13 +62,13 @@ class HlavneOkno(QMainWindow):
         self.model = None
         self.stat_poz_nacitane = False
         self.ciel_dyn_poz_nacitane = False
-        self.pocet_NN_vrstiev = (32, 16)
+        self.pocet_NN_vrstiev = None
         self.oznacenie_stlpca_stat = "Tavba č."
         self.oznacenie_stlpca_dyn = "Čas (s)"
         self.oznacenie_teploty = "Teplota (°C)"
         self.oznacenie_uhlika = "Uhlík (%)"
         self.zvoleny_model = "SVR"
-        self.zvoleny_kernel = "polynomická regresia"
+        self.zvoleny_kernel = "rbf"
         self.zvoleny_ciel = self.oznacenie_teploty
         self.typ_dat = ""
         self.os_x = ""
@@ -274,7 +275,6 @@ class HlavneOkno(QMainWindow):
         self.vstupy_stlpce = self.data_vstupy.columns[:].tolist()
 
         # Identifikácia osy X na základe známeho názvu stĺpca
-        print(f"self.vstupy_stlpce:\n{self.vstupy_stlpce}")
         if self.oznacenie_stlpca_stat in self.vstupy_stlpce:
             self.os_x = self.oznacenie_stlpca_stat
         elif self.oznacenie_stlpca_dyn in self.vstupy_stlpce:
@@ -391,14 +391,13 @@ class HlavneOkno(QMainWindow):
             if self.stat_poz_nacitane == True and self.ciel_dyn_poz_nacitane == False and self.zvolene_vstupy:
                 spolocne_stlpce = list(set(self.zvolene_vstupy) & set(self.ciele_stlpce))
                 self.zvolene_vstupy = [col for col in spolocne_stlpce if col not in [self.oznacenie_teploty, self.oznacenie_uhlika]]
-            print(f"stat poz / ciel dyn poz / zvol vstupy / ciele stlpce:\n{self.stat_poz_nacitane, self.ciel_dyn_poz_nacitane, self.zvolene_vstupy, self.ciele_stlpce}")
+
             if self.stat_poz_nacitane == False and not self.zvolene_vstupy:
                 self.zvolene_vstupy = self.ciele_stlpce[1:]
             vykreslene_ciele = self.zvolene_vstupy
             if self.os_x not in vykreslene_ciele:
                 vykreslene_ciele = [self.os_x] + vykreslene_ciele
 
-            print(f"vykreslene ciele:\n{vykreslene_ciele}")
             self.data_zvol_ciele = self.data_ciele[vykreslene_ciele].copy()
             nac_data_ciele = self.data_zvol_ciele.melt(
                 id_vars=self.os_x,
@@ -425,7 +424,6 @@ class HlavneOkno(QMainWindow):
         # Nastavenie popisov a rozsahov grafu
         plot2.set_xlabel(self.os_x, labelpad=-10, x=-0.03, color=self.farba_popredia)
         xlim_max = nac_data_ciele[self.os_x].max()
-        print(f"os_x / nac dat ciele / xlim max:\n{self.os_x, nac_data_ciele, xlim_max}")
         plot2.set_xlim(0, xlim_max)
         self.graf_spodny.figure.canvas.draw_idle()
         self.ciel_dyn_poz_nacitane = True
@@ -456,28 +454,82 @@ class HlavneOkno(QMainWindow):
     # Voľba modelu predikcie a nastavenie parametrov
     def volbaModelu(self):
         if self.ciel_dyn_poz_nacitane and self.stat_poz_nacitane:
-            model_mapa = {
-                "SVR": SVR(kernel='rbf', C=20, epsilon=0.001),
-                "RF": RandomForestRegressor(random_state=17, n_jobs=-1),
-                "NN": MLPRegressor(hidden_layer_sizes=self.pocet_NN_vrstiev, solver="lbfgs", learning_rate="adaptive", alpha=0.0001, max_iter=200, random_state=17)
-                          }
-            self.model = model_mapa.get(self.zvoleny_model)
+            # -- Predikcia s pevne zadanými parametrami
+            # model_mapa = {
+            #     "SVR": SVR(kernel=self.zvoleny_kernel, C=20, epsilon=0.001),
+            #     "RF": RandomForestRegressor(random_state=17, n_jobs=-1),
+            #     "NN": MLPRegressor(hidden_layer_sizes=self.pocet_NN_vrstiev, solver="lbfgs", learning_rate="adaptive", alpha=0.0001, max_iter=200, random_state=17)
+            #               }
+            # self.model = model_mapa.get(self.zvoleny_model)
 
-                # parametre = {
-                #     'hidden_layer_sizes': [(64,), (16, 16), (32, 16)],
-                #     'alpha': [0.0001, 0.001, 0.01],
-                #     'solver': ['lbfgs'],
-                #     'learning_rate': ['adaptive', 'constant'],
-                #     'learning_rate_init': [0.001, 0.01],
-                # }
-                # self.model = GridSearchCV(MLPRegressor(max_iter=1000), parametre, cv=5)
+            # -- Predikcia so zisťovaním najvhodnejších parametrov
+            pipeline = Pipeline([])
+            parametre = {}
+            skryte_vrstvy = [self.pocet_NN_vrstiev] if self.pocet_NN_vrstiev else [(32,), (16, 8), (64, 32), (32, 16)]
+            if self.zvoleny_model == "SVR":
+                model = SVR(kernel=self.zvoleny_kernel)
+                pipeline = Pipeline([
+                    ('scaler', StandardScaler()),
+                    ('model', model)
+                ])
+                parametre = {
+                    'model__C': [1, 5, 10, 20, 50],
+                    'model__epsilon': [0.001, 0.01, 0.05, 0.1]
+                }
 
+                if self.zvoleny_kernel == 'poly':
+                    parametre.update({
+                        'model__degree': [2, 3, 4],
+                        'model__coef0': [0, 0.5, 1, 2, 5]
+                    })
+
+            elif self.zvoleny_model == "RF":
+                model = RandomForestRegressor(random_state=42)
+                pipeline = Pipeline([
+                    ('model', model)
+                ])
+                parametre = {
+                    'model__n_estimators': [100, 200, 300],
+                    'model__max_depth': [None, 10, 20, 30],
+                    'model__min_samples_split': [2, 4],
+                    'model__min_samples_leaf': [1, 2],
+                }
+
+            elif self.zvoleny_model == "NN":
+                model = MLPRegressor(random_state=42, max_iter=1000)
+                pipeline = Pipeline([
+                    ('scaler', StandardScaler()),
+                    ('model', model)
+                ])
+                parametre = {
+                    'model__hidden_layer_sizes': skryte_vrstvy,
+                    'model__solver': ['lbfgs'],
+                    'model__alpha': [0.0001, 0.001, 0.01],
+                    'model__learning_rate': ['constant', 'adaptive']
+                }
+
+            self.model = RandomizedSearchCV(
+                pipeline,
+                param_distributions=parametre,
+                n_iter=30,
+                cv=5,
+                scoring='neg_mean_squared_error',
+                random_state=17,
+                verbose=2,
+                n_jobs=-1
+            )
             self.predikcia(self.model)
         else:
             self.novaSprava("Najprv načítajte pozorovania a ciele predikcie")
 
     def predikcia(self, model):
-        self.novaSprava("Prebieha trénovanie modelu a predikcia...")
+        self.novaSprava(f"Prebieha trénovanie modelu a predikcia pomocou modelu {self.zvoleny_model}...")
+        self.progres_dialog = QProgressDialog(f"Prebieha predikcia, prosím čakajte...\nMôže to trvať niekoľko sekúnd až minút", None, 0, 0, self)
+        self.progres_dialog.setWindowTitle("Predikcia")
+        self.progres_dialog.setWindowModality(Qt.ApplicationModal)
+        self.progres_dialog.setCancelButton(None)  # Bez tlačidla "Zrušiť"
+        self.progres_dialog.setMinimumDuration(0)  # Zobrazí sa okamžite
+        self.progres_dialog.show()
         QApplication.processEvents()
         try:
             if self.typ_dat == "statické":
@@ -492,7 +544,6 @@ class HlavneOkno(QMainWindow):
 
                 # Trénovanie modelu
                 model.fit(y_tren, matica_ciela_tren.values.ravel())
-                #print(model.best_params_)
 
                 # Predikcia na trénovacích aj testovacích dátach
                 model_trenovane = model.predict(y_tren)
@@ -542,6 +593,7 @@ class HlavneOkno(QMainWindow):
                 vsetky_oznacenia = oznacenie_1 + oznacenie_2
                 legenda = dict(zip(vsetky_oznacenia, vsetky_ciary))  # zachová len posledné výskyty každého labelu
                 self.graf_spodny.legend(legenda.values(), legenda.keys(), loc="lower left", bbox_to_anchor=(0, -0.32), ncol=10)
+                self.novaSprava(f"Najlepšie parametre modelu: {model.best_params_}")
 
             elif self.typ_dat == "dynamické":
                 merane = {"teplota_zac": None,"teplota_konc": None,"uhlik_zac": None,"uhlik_konc": None}
@@ -559,10 +611,14 @@ class HlavneOkno(QMainWindow):
                 x_test_skal = skalovanie.transform(x_test)
                 model_teplota = clone(self.model)
                 model_uhlik = clone(self.model)
-                model_dyn_teplota = model_teplota.fit(x_tren_skal, y_tren_teplota.values.ravel())
-                model_dyn_uhlik = model_uhlik.fit(x_tren_skal, y_tren_uhlik.values.ravel())
-                self.predikcia_teplota = model_dyn_teplota.predict(x_test_skal)
-                self.predikcia_uhlik = model_dyn_uhlik.predict(x_test_skal)
+                model_teplota.fit(x_tren_skal, y_tren_teplota.values.ravel())
+                model_uhlik.fit(x_tren_skal, y_tren_uhlik.values.ravel())
+                self.predikcia_uhlik = model_uhlik.predict(x_test_skal)
+                self.predikcia_teplota = model_teplota.predict(x_test_skal)
+                # model_dyn_teplota = model_teplota.fit(x_tren_skal, y_tren_teplota.values.ravel())
+                # self.predikcia_teplota = model_dyn_teplota.predict(x_test_skal)
+                # model_dyn_uhlik = model_uhlik.fit(x_tren_skal, y_tren_uhlik.values.ravel())
+                # self.predikcia_uhlik = model_dyn_uhlik.predict(x_test_skal)
                 self.resetGrafov()
                 self.graf_vrchny.set_title("Predikovaná teplota (°C)", color=self.farba_popredia)
                 self.graf_spodny.set_title("Predikovaný uhlík (%)", color=self.farba_popredia)
@@ -584,14 +640,18 @@ class HlavneOkno(QMainWindow):
                 self.graf_spodny.margins(x=0)
                 self.graf_vrchny.legend(loc="upper left", bbox_to_anchor=(1.01, 1.1))
                 self.graf_spodny.legend(loc="upper left", bbox_to_anchor=(1.01, 1.1))
+                self.novaSprava(f"Najlepšie parametre modelu: {model_teplota.best_params_}")
+                self.novaSprava(f"Najlepšie parametre modelu: {model_uhlik.best_params_}")
+
         except ValueError as chyba:
             self.chybove_okno.showMessage(f"Neočakávané hodnoty:<br>{str(chyba)}")
             self.novaSprava(f"Neočakávané hodnoty v súbore {self.nazov_databazy}")
         except Exception as chyba:
             self.chybove_okno.showMessage(f"Neočakávaná chyba:<br>{str(chyba)}")
-            self.novaSprava(f"Neočakávaná chyba pri otváraní súboru {self.nazov_databazy}")
+            self.novaSprava(f"Neočakávaná chyba.")
         else:
             self.graf_spodny.figure.canvas.draw_idle()
+            self.progres_dialog.close()
             self.novaSprava("Predikcia dokončená")
 
     def pomocnik(self):

@@ -180,8 +180,7 @@ class NastaveniaVystupov(DialogOknoNastaveni):
             return
         if not self.hlavne_okno.zvoleny_ciel == novy_ciel:
             self.hlavne_okno.zvoleny_ciel = novy_ciel
-            if self.hlavne_okno.data_nacitane and self.hlavne_okno.typ_dat=="statické":
-                #self.hlavne_okno.vykreslenieDat("spodny")
+            if self.hlavne_okno.ciel_dyn_poz_nacitane and self.hlavne_okno.typ_dat=="statické":
                 self.hlavne_okno.vykresliSpodnyGraf()
         self.close()
 
@@ -192,6 +191,8 @@ class NastaveniaModelu(DialogOknoNastaveni):
         self.setWindowTitle('Nastavenia modelu')
         self.hlavne_okno = hlavne_okno
         hlavne_roz = QVBoxLayout()
+
+        # Nastavenia pre statické dáta
         stat_group_box = QGroupBox("Nastavenia pre statické dáta")
         stat_roz = QVBoxLayout()
         pomer_roz = QHBoxLayout()
@@ -205,7 +206,8 @@ class NastaveniaModelu(DialogOknoNastaveni):
         pomer_roz.addWidget(self.pomer_dat_spinbox)
         stat_roz.addLayout(pomer_roz)
         stat_group_box.setLayout(stat_roz)
-        # Vytvorenie skupiny pre výber modelu
+
+        # Výber modelu
         model_group_box = QGroupBox("Model")
         model_roz = QVBoxLayout()
         self.radio_SVR = QRadioButton("Support Vector Regression")
@@ -220,7 +222,7 @@ class NastaveniaModelu(DialogOknoNastaveni):
         model_roz.addWidget(self.radio_NN)
         model_group_box.setLayout(model_roz)
 
-        # Vytvorenie skupiny pre výber jadrovej funkcie
+        # Jadrová funkcia SVR
         self.kernel_group_box = QGroupBox("Jadrová funkcia pre model SVR")
         kernel_roz = QVBoxLayout()
         self.radio_SVRGauss = QRadioButton("Gaussova regresia")
@@ -232,18 +234,22 @@ class NastaveniaModelu(DialogOknoNastaveni):
         kernel_roz.addWidget(self.radio_SVRpolynom)
         self.kernel_group_box.setLayout(kernel_roz)
 
-        # Vytvorenie skupiny pre nastavenia NN
+        # Nastavenia pre neurónové siete
         self.NN_group_box = QGroupBox("Nastavenia modelu neurónových sietí")
         NN_roz = QVBoxLayout()
         NN_neurony_roz = QHBoxLayout()
-        NN_neurony = QLabel("Počet neurónov")
+        NN_neurony = QLabel("Počet neurónov skrytých vrstiev (napr. 32, 16)")
         self.NN_neurony_lineedit = QLineEdit()
         self.NN_neurony_lineedit.setFixedSize(85, 26)
-        self.NN_neurony_lineedit.setText(", ".join(map(str, self.hlavne_okno.pocet_NN_vrstiev)))
+        if self.hlavne_okno.pocet_NN_vrstiev:
+            self.NN_neurony_lineedit.setText(", ".join(map(str, self.hlavne_okno.pocet_NN_vrstiev)))
+        else:
+            self.NN_neurony_lineedit.setText("auto")
         NN_neurony_roz.addWidget(NN_neurony)
         NN_neurony_roz.addWidget(self.NN_neurony_lineedit)
         NN_roz.addLayout(NN_neurony_roz)
         self.NN_group_box.setLayout(NN_roz)
+
         hlavne_roz.addWidget(stat_group_box)
         hlavne_roz.addWidget(model_group_box)
         hlavne_roz.addWidget(self.kernel_group_box)
@@ -260,9 +266,9 @@ class NastaveniaModelu(DialogOknoNastaveni):
             self.radio_RF.setChecked(True)
         elif self.hlavne_okno.zvoleny_model == "NN":
             self.radio_NN.setChecked(True)
-        if self.hlavne_okno.zvoleny_kernel == "Gaussova regresia":
+        if self.hlavne_okno.zvoleny_kernel == "rbf":
             self.radio_SVRGauss.setChecked(True)
-        elif self.hlavne_okno.zvoleny_kernel == "polynomická regresia":
+        elif self.hlavne_okno.zvoleny_kernel == "poly":
             self.radio_SVRpolynom.setChecked(True)
         self.tlacidlo_ulozit.clicked.connect(self.zmenaPomeruDat)
         self.tlacidlo_ulozit.clicked.connect(self.zmenaModelu)
@@ -283,9 +289,9 @@ class NastaveniaModelu(DialogOknoNastaveni):
 
     def zmenaKernelu(self):
         if self.radio_SVRGauss.isChecked():
-            self.hlavne_okno.zvoleny_kernel = "Gaussova regresia"
+            self.hlavne_okno.zvoleny_kernel = "rbf"
         elif self.radio_SVRpolynom.isChecked():
-            self.hlavne_okno.zvoleny_kernel = "polynomická regresia"
+            self.hlavne_okno.zvoleny_kernel = "poly"
 
     def zobrazenieKernelu(self):
         if self.radio_SVR.isChecked():
@@ -294,9 +300,13 @@ class NastaveniaModelu(DialogOknoNastaveni):
             self.kernel_group_box.hide()
 
     def zmenaNN(self):
-        pocet_NN_vrstiev_text = self.NN_neurony_lineedit.text()
-        NN_hodnoty = [x.strip() for x in pocet_NN_vrstiev_text.split(',') if x.strip()]
-        self.hlavne_okno.pocet_NN_vrstiev = tuple(int(x) for x in NN_hodnoty)
+        pocet_NN_vrstiev_text = self.NN_neurony_lineedit.text().strip()
+        try:
+            NN_hodnoty = [int(x.strip()) for x in pocet_NN_vrstiev_text.split(',') if x.strip()]
+            if NN_hodnoty:
+                self.hlavne_okno.pocet_NN_vrstiev = tuple(NN_hodnoty)
+        except ValueError:
+            self.hlavne_okno.novaSprava("Nebol zadaný platný vstup pre konfiguráciu skrytých NN vrstiev. Použije sa automatická konfigurácia.")
 
     def zobrazenieNNnastaveni(self):
         if self.radio_NN.isChecked():
