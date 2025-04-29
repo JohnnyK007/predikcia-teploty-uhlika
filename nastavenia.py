@@ -151,7 +151,7 @@ class NastaveniaVstupov(DialogOknoNastaveni):
 class NastaveniaVystupov(DialogOknoNastaveni):
     def __init__(self, hlavne_okno):
         super().__init__()
-        self.setWindowTitle('Nastavenia výstupov')
+        self.setWindowTitle('Nastavenia cieľov')
         self.hlavne_okno = hlavne_okno
         hlavne_roz = QVBoxLayout()
         self.radio_teplota = QRadioButton("Teplota")

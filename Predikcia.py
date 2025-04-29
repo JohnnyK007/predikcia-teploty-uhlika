@@ -292,19 +292,9 @@ class HlavneOkno(QMainWindow):
         self.data_zvol_vstupy = self.data_vstupy[vykreslene_vstupy].copy()
 
         # Preusporiadanie dát pre vizualizáciu
-        nac_data_vstupy = self.data_zvol_vstupy.melt(
-            id_vars=self.os_x,
-            var_name="Názov stĺpca",
-            value_name=""
-        )
+        nac_data_vstupy = self.data_zvol_vstupy.melt(id_vars=self.os_x, var_name="Názov stĺpca", value_name="")
 
-        plot1 = seaborn.lineplot(
-            data=nac_data_vstupy,
-            x=self.os_x,
-            y="",
-            hue="Názov stĺpca",
-            ax=self.graf_vrchny
-        )
+        plot1 = seaborn.lineplot(data=nac_data_vstupy, x=self.os_x, y="", hue="Názov stĺpca", ax=self.graf_vrchny)
         plot1.legend(loc="upper left", bbox_to_anchor=(1.01, 1.1))
         plot1.set_xlabel(self.os_x, labelpad=-10, x=-0.03, color=self.farba_popredia)
 
@@ -413,7 +403,7 @@ class HlavneOkno(QMainWindow):
                 ax=self.graf_spodny,
                 color="blue"
             )
-            plot2.legend(loc="lower left", bbox_to_anchor=(-0.05, -0.30), ncol=11)
+            plot2.legend(loc="lower left", bbox_to_anchor=(-0.06, -0.30), ncol=11, columnspacing=0.7, handletextpad=0.4)
 
         else:
             self.novaSprava("Nezistený typ dát")
@@ -560,7 +550,10 @@ class HlavneOkno(QMainWindow):
                 # Výpočet chýb
                 mse_trenovane = mean_squared_error(matica_ciela_tren, model_trenovane)
                 mse_testovacie = mean_squared_error(self.data_ciele.iloc[pocet_tren_dat:][self.zvoleny_ciel], model_testovacie)
-                self.novaSprava(f"<b>Stredná kvadratická chyba (MSE) - trénované: {mse_trenovane: .4f}, testovacie: {mse_testovacie: .4f}</b>")
+                if self.zvoleny_ciel == self.oznacenie_uhlika:
+                    self.novaSprava(f"<b>Stredná kvadratická chyba (MSE) - trénované: {mse_trenovane: .6f}, testovacie: {mse_testovacie: .6f}</b>")
+                else:
+                    self.novaSprava(f"<b>Stredná kvadratická chyba (MSE) - trénované: {mse_trenovane: .2f}, testovacie: {mse_testovacie: .2f}</b>")
                 x_tren = self.data_ciele.iloc[:len(model_trenovane)].index
                 x_test = self.data_ciele.iloc[len(model_trenovane):].index
                 real_tren = matica_ciela_tren.values.ravel()
@@ -615,10 +608,10 @@ class HlavneOkno(QMainWindow):
                 model_uhlik.fit(x_tren_skal, y_tren_uhlik.values.ravel())
                 self.predikcia_uhlik = model_uhlik.predict(x_test_skal)
                 self.predikcia_teplota = model_teplota.predict(x_test_skal)
-                # model_dyn_teplota = model_teplota.fit(x_tren_skal, y_tren_teplota.values.ravel())
-                # self.predikcia_teplota = model_dyn_teplota.predict(x_test_skal)
-                # model_dyn_uhlik = model_uhlik.fit(x_tren_skal, y_tren_uhlik.values.ravel())
-                # self.predikcia_uhlik = model_dyn_uhlik.predict(x_test_skal)
+                predikcia_teplota_diff = numpy.diff(self.predikcia_teplota)
+                predikcia_uhlik_diff = numpy.diff(self.predikcia_uhlik)
+                std_predikcia_teplota_diff = numpy.std(predikcia_teplota_diff)
+                std_predikcia_uhlik_diff = numpy.std(predikcia_uhlik_diff)
                 self.resetGrafov()
                 self.graf_vrchny.set_title("Predikovaná teplota (°C)", color=self.farba_popredia)
                 self.graf_spodny.set_title("Predikovaný uhlík (%)", color=self.farba_popredia)
@@ -629,9 +622,9 @@ class HlavneOkno(QMainWindow):
                 if merane["teplota_konc"] is not None:
                     self.graf_vrchny.plot(len(self.predikcia_teplota) - 1, merane["teplota_konc"], marker="o", color="gold", label="Meraná konc. teplota (°C)", zorder=4)
                 if merane["uhlik_zac"] is not None:
-                    self.graf_spodny.plot(0, merane["uhlik_zac"], marker="o", color="mediumspringgreen", label="Meraná zač. koncentrácia uhlíka (%)", zorder=4)
+                    self.graf_spodny.plot(0, merane["uhlik_zac"], marker="o", color="mediumspringgreen", label="Meraná zač. konc. uhlíka (%)", zorder=4)
                 if merane["uhlik_konc"] is not None:
-                    self.graf_spodny.plot(len(self.predikcia_uhlik) - 1, merane["uhlik_konc"], marker="o", color="darkturquoise", label="Meraná kon. koncentrácia uhlíka (%)", zorder=4)
+                    self.graf_spodny.plot(len(self.predikcia_uhlik) - 1, merane["uhlik_konc"], marker="o", color="darkturquoise", label="Meraná kon. konc. uhlíka (%)", zorder=4)
                 self.graf_vrchny.set_xlabel(self.oznacenie_stlpca_dyn, labelpad=-10, x=-0.03, color=self.farba_popredia)
                 self.graf_spodny.set_xlabel(self.oznacenie_stlpca_dyn, labelpad=-10, x=-0.03, color=self.farba_popredia)
                 self.graf_vrchny.set_ylabel("(°C)", color=self.farba_popredia)
@@ -640,8 +633,9 @@ class HlavneOkno(QMainWindow):
                 self.graf_spodny.margins(x=0)
                 self.graf_vrchny.legend(loc="upper left", bbox_to_anchor=(1.01, 1.1))
                 self.graf_spodny.legend(loc="upper left", bbox_to_anchor=(1.01, 1.1))
-                self.novaSprava(f"Najlepšie parametre modelu: {model_teplota.best_params_}")
-                self.novaSprava(f"Najlepšie parametre modelu: {model_uhlik.best_params_}")
+                self.novaSprava(f"Najlepšie parametre modelu pre predikciu teploty: {model_teplota.best_params_}")
+                self.novaSprava(f"Najlepšie parametre modelu pre predikciu uhlíka: {model_uhlik.best_params_}")
+                self.novaSprava(f"<b>Štandardná odchýlka diferencií - predikovaná teplota: {std_predikcia_teplota_diff:.4f}, predikovaný uhlík: {std_predikcia_uhlik_diff:.4f}</b>")
 
         except ValueError as chyba:
             self.chybove_okno.showMessage(f"Neočakávané hodnoty:<br>{str(chyba)}")
@@ -655,7 +649,7 @@ class HlavneOkno(QMainWindow):
             self.novaSprava("Predikcia dokončená")
 
     def pomocnik(self):
-        cesta = os.path.abspath("uzivatelska_prirucka.pdf")
+        cesta = os.path.abspath("pouzivatelska_prirucka.pdf")
         if os.path.exists(cesta):
             webbrowser.open_new(cesta)
         else:
@@ -716,9 +710,10 @@ class HlavneOkno(QMainWindow):
 
     @staticmethod
     def o():
-        o_aplikacii = (
-            'Táto aplikácia bola vytvorená ako súčasť diplomovej práce "Predikcia teploty a uhlíka v procese výroby ocele na báze strojového učenia". '
-            'Umožňuje načítať namerané dáta z databázového súboru, vykresliť dáta do grafu, vykonať analýzu dáť a vytvoriť z nich model predikcie.')
+        o_aplikacii = ('Táto aplikácia bola vytvorená ako súčasť diplomovej práce "Predikcia teploty a uhlíka v procese'
+                       ' výroby ocele na báze strojového učenia". Umožňuje načítať namerané dáta z databázového súboru,'
+                       ' vykresliť dáta do grafu, vykonať analýzu dáť a vytvoriť z nich model predikcie.<br><br>'
+                       'Vytvoril Alex Jurík')
         QMessageBox.about(QApplication.activeWindow(), "O aplikácií", o_aplikacii)
 
 
