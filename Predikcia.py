@@ -104,7 +104,7 @@ class HlavneOkno(QMainWindow):
         menu_subor.addAction(polozka_export)
 
         # Vytvorenie podmenu Nastavenia a jeho položiek
-        polozka_nast_vseobecne = QAction("Všeobecné", self)
+        polozka_nast_vseobecne = QAction("Databáza", self)
         polozka_nast_vseobecne.triggered.connect(self.vseobecneNastavenia)
         menu_nastavenia.addAction(polozka_nast_vseobecne)
         polozka_nast_vstupov = QAction("Pozorovania", self)
@@ -424,16 +424,22 @@ class HlavneOkno(QMainWindow):
             file_path, _ = QFileDialog.getSaveFileName(None, "Exportovať dáta", "", "CSV súbory (*.csv);;Všetky súbory (*)")
             if file_path:
                 data = {}
+
+                # Príprava výsledkov predikcie na export
                 if self.typ_dat == "statické":
                     if self.zvoleny_ciel == self.oznacenie_teploty:
                         data["Meraná teplota (°C)"] = self.merany_ciel
                     if self.zvoleny_ciel == self.oznacenie_uhlika:
                         data["Meraný uhlík (%)"] = self.merany_ciel
+
                 if self.predikcia_teplota is not None and len(self.predikcia_teplota) > 0:
                     data["Predikovaná teplota (°C)"] = self.predikcia_teplota
+
                 if self.predikcia_uhlik is not None and len(self.predikcia_uhlik) > 0:
                     data["Predikovaný uhlík (%)"] = self.predikcia_uhlik
+
                 if data: dataframe_predikcia = pandas.DataFrame(data)
+
                 # Uloženie do CSV
                 dataframe_predikcia.to_csv(file_path, index=False, sep=self.oddelovac_dat, encoding=self.kodovanie)
                 self.novaSprava(f"Výsledky predikcie s využitím modelu {self.zvoleny_model} boli uložené do priečinku {file_path}")
@@ -456,6 +462,7 @@ class HlavneOkno(QMainWindow):
             pipeline = Pipeline([])
             parametre = {}
             skryte_vrstvy = [self.pocet_NN_vrstiev] if self.pocet_NN_vrstiev else [(32,), (16, 8), (64, 32), (32, 16)]
+
             if self.zvoleny_model == "SVR":
                 model = SVR(kernel=self.zvoleny_kernel)
                 pipeline = Pipeline([
@@ -517,10 +524,11 @@ class HlavneOkno(QMainWindow):
         self.progres_dialog = QProgressDialog(f"Prebieha predikcia, prosím čakajte...\nMôže to trvať niekoľko sekúnd až minút", None, 0, 0, self)
         self.progres_dialog.setWindowTitle("Predikcia")
         self.progres_dialog.setWindowModality(Qt.ApplicationModal)
-        self.progres_dialog.setCancelButton(None)  # Bez tlačidla "Zrušiť"
-        self.progres_dialog.setMinimumDuration(0)  # Zobrazí sa okamžite
+        self.progres_dialog.setCancelButton(None)
+        self.progres_dialog.setMinimumDuration(0)
         self.progres_dialog.show()
         QApplication.processEvents()
+
         try:
             if self.typ_dat == "statické":
                 pocet_tren_dat = int(len(self.data_ciele) * (self.pomer_dat / 100))
@@ -550,10 +558,12 @@ class HlavneOkno(QMainWindow):
                 # Výpočet chýb
                 mse_trenovane = mean_squared_error(matica_ciela_tren, model_trenovane)
                 mse_testovacie = mean_squared_error(self.data_ciele.iloc[pocet_tren_dat:][self.zvoleny_ciel], model_testovacie)
+
                 if self.zvoleny_ciel == self.oznacenie_uhlika:
                     self.novaSprava(f"<b>Stredná kvadratická chyba (MSE) - trénované: {mse_trenovane: .6f}, testovacie: {mse_testovacie: .6f}</b>")
                 else:
                     self.novaSprava(f"<b>Stredná kvadratická chyba (MSE) - trénované: {mse_trenovane: .2f}, testovacie: {mse_testovacie: .2f}</b>")
+
                 x_tren = self.data_ciele.iloc[:len(model_trenovane)].index
                 x_test = self.data_ciele.iloc[len(model_trenovane):].index
                 real_tren = matica_ciela_tren.values.ravel()
@@ -562,14 +572,18 @@ class HlavneOkno(QMainWindow):
                 abs_odchylka_test = numpy.abs(real_test - model_testovacie)
                 abs_odchylka = numpy.concatenate((abs_odchylka_tren, abs_odchylka_test))
                 abs_x = self.data_ciele.index
+
                 for line in self.graf_spodny.get_lines():
                     if line.get_label() in ["Predikcia (trénované)", "Predikcia (testovacie)"]:
                         line.remove()
+
                 if hasattr(self, "odchylka_bar"):
                     for bar in self.odchylka_bar:
                         bar.remove()
+
                 if not hasattr(self, "graf_ciele_odchylka"):
                     self.graf_ciele_odchylka = self.graf_spodny.twinx()
+
                 self.graf_spodny.plot(x_tren, model_trenovane, label="Predikcia (trénované)", color="green", linestyle="-", zorder=3)
                 self.graf_spodny.plot(x_test, model_testovacie, label="Predikcia (testovacie)", color="orange", linestyle="-", zorder=3)
                 self.odchylka_bar = self.graf_ciele_odchylka.bar(abs_x, abs_odchylka, width=1.0, alpha=0.25, color="gray", label="Absolútna odchýlka", zorder=1)
@@ -591,32 +605,45 @@ class HlavneOkno(QMainWindow):
             elif self.typ_dat == "dynamické":
                 merane = {"teplota_zac": None,"teplota_konc": None,"uhlik_zac": None,"uhlik_konc": None}
                 dialog = DynTepUhlik(self)
+
                 if dialog.exec():
                     merane = dialog.vysledky
+
                 spolocne_stlpce = list(set(self.data_zvol_vstupy.columns) & set(self.data_ciele.columns))
                 self.zvolene_vstupy = [col for col in spolocne_stlpce if col not in [self.oznacenie_teploty, self.oznacenie_uhlika]]
                 x_tren = self.data_vstupy[self.zvolene_vstupy]
                 y_tren_teplota = self.data_vstupy[self.oznacenie_teploty]
                 y_tren_uhlik = self.data_vstupy[self.oznacenie_uhlika]
-                x_test = self.data_ciele[self.zvolene_vstupy]
+                x_pred = self.data_ciele[self.zvolene_vstupy]
+
+                # Škálovanie dát
                 skalovanie = StandardScaler()
                 x_tren_skal = skalovanie.fit_transform(x_tren)
-                x_test_skal = skalovanie.transform(x_test)
+                x_pred_skal = skalovanie.transform(x_pred)
                 model_teplota = clone(self.model)
                 model_uhlik = clone(self.model)
+
+                # Trénovanie modelu na statických dátach
                 model_teplota.fit(x_tren_skal, y_tren_teplota.values.ravel())
                 model_uhlik.fit(x_tren_skal, y_tren_uhlik.values.ravel())
-                self.predikcia_uhlik = model_uhlik.predict(x_test_skal)
-                self.predikcia_teplota = model_teplota.predict(x_test_skal)
+
+                # Predikcia na dynamických dátach
+                self.predikcia_uhlik = model_uhlik.predict(x_pred_skal)
+                self.predikcia_teplota = model_teplota.predict(x_pred_skal)
+
+                # Výpočet štatistických ukazovateľov
                 predikcia_teplota_diff = numpy.diff(self.predikcia_teplota)
                 predikcia_uhlik_diff = numpy.diff(self.predikcia_uhlik)
                 std_predikcia_teplota_diff = numpy.std(predikcia_teplota_diff)
                 std_predikcia_uhlik_diff = numpy.std(predikcia_uhlik_diff)
+
                 self.resetGrafov()
                 self.graf_vrchny.set_title("Predikovaná teplota (°C)", color=self.farba_popredia)
                 self.graf_spodny.set_title("Predikovaný uhlík (%)", color=self.farba_popredia)
                 self.graf_vrchny.plot(range(len(self.predikcia_teplota)), self.predikcia_teplota, label=self.oznacenie_teploty, linestyle="-", zorder=2, color="red")
                 self.graf_spodny.plot(range(len(self.predikcia_uhlik)), self.predikcia_uhlik, label=self.oznacenie_uhlika, linestyle="-", zorder=2, color="dodgerblue")
+
+                # Vykreslenie meraných hodnôt (ak boli zadané používateľom)
                 if merane["teplota_zac"] is not None:
                     self.graf_vrchny.plot(0, merane["teplota_zac"], marker="o", color="darkorange", label="Meraná zač. teplota (°C)", zorder=4)
                 if merane["teplota_konc"] is not None:
@@ -625,6 +652,7 @@ class HlavneOkno(QMainWindow):
                     self.graf_spodny.plot(0, merane["uhlik_zac"], marker="o", color="mediumspringgreen", label="Meraná zač. konc. uhlíka (%)", zorder=4)
                 if merane["uhlik_konc"] is not None:
                     self.graf_spodny.plot(len(self.predikcia_uhlik) - 1, merane["uhlik_konc"], marker="o", color="darkturquoise", label="Meraná kon. konc. uhlíka (%)", zorder=4)
+
                 self.graf_vrchny.set_xlabel(self.oznacenie_stlpca_dyn, labelpad=-10, x=-0.03, color=self.farba_popredia)
                 self.graf_spodny.set_xlabel(self.oznacenie_stlpca_dyn, labelpad=-10, x=-0.03, color=self.farba_popredia)
                 self.graf_vrchny.set_ylabel("(°C)", color=self.farba_popredia)
@@ -633,6 +661,7 @@ class HlavneOkno(QMainWindow):
                 self.graf_spodny.margins(x=0)
                 self.graf_vrchny.legend(loc="upper left", bbox_to_anchor=(1.01, 1.1))
                 self.graf_spodny.legend(loc="upper left", bbox_to_anchor=(1.01, 1.1))
+
                 self.novaSprava(f"Najlepšie parametre modelu pre predikciu teploty: {model_teplota.best_params_}")
                 self.novaSprava(f"Najlepšie parametre modelu pre predikciu uhlíka: {model_uhlik.best_params_}")
                 self.novaSprava(f"<b>Štandardná odchýlka diferencií - predikovaná teplota: {std_predikcia_teplota_diff:.4f}, predikovaný uhlík: {std_predikcia_uhlik_diff:.4f}</b>")

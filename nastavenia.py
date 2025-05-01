@@ -17,7 +17,7 @@ class DialogOknoNastaveni(QDialog):
 class VseobecneNastavenia(DialogOknoNastaveni):
     def __init__(self, hlavne_okno):
         super().__init__()
-        self.setWindowTitle('Všeobecné nastavenia')
+        self.setWindowTitle('Nastavenia databázy')
         self.hlavne_okno = hlavne_okno
         hlavne_roz = QVBoxLayout()
         oddelovac_roz = QHBoxLayout()
