@@ -130,7 +130,7 @@ class NastaveniaVstupov(DialogOknoNastaveni):
                 self.hlavne_okno.vykresliVrchnyGraf()
             if self.hlavne_okno.typ_dat == "dynamické":
                 spolocne_stlpce = list(set(self.hlavne_okno.zvolene_vstupy) & set(self.hlavne_okno.ciele_stlpce))
-                self.hlavne_okno.zvolene_vstupy = [col for col in spolocne_stlpce if col not in ["Teplota (°C)", "Uhlík (%)"]]
+                self.hlavne_okno.zvolene_vstupy = [col for col in spolocne_stlpce if col not in [self.hlavne_okno.oznacenie_teploty, self.hlavne_okno.oznacenie_uhlika]]
                 self.hlavne_okno.vykresliSpodnyGraf()
             self.hlavne_okno.novaSprava("Vybrané pozorovania boli uložené")
             self.close()
@@ -156,9 +156,9 @@ class NastaveniaVystupov(DialogOknoNastaveni):
         hlavne_roz = QVBoxLayout()
         self.radio_teplota = QRadioButton("Teplota")
         self.radio_uhlik = QRadioButton('Uhlík')
-        if self.hlavne_okno.zvoleny_ciel == "Teplota (°C)":
+        if self.hlavne_okno.zvoleny_ciel == self.hlavne_okno.oznacenie_teploty:
             self.radio_teplota.setChecked(True)
-        elif self.hlavne_okno.zvoleny_ciel == "Uhlík (%)":
+        elif self.hlavne_okno.zvoleny_ciel == self.hlavne_okno.oznacenie_uhlika:
             self.radio_uhlik.setChecked(True)
         ciele_roz = QVBoxLayout()
         ciele_box = QGroupBox("Zvolený cieľ predikcie (statické dáta)")
@@ -173,9 +173,9 @@ class NastaveniaVystupov(DialogOknoNastaveni):
     # Zmena vykreslených dát podľa zvoleného výstupu
     def zmenaCiela(self):
         if self.radio_teplota.isChecked():
-            novy_ciel = "Teplota (°C)"
+            novy_ciel = self.hlavne_okno.oznacenie_teploty
         elif self.radio_uhlik.isChecked():
-            novy_ciel = "Uhlík (%)"
+            novy_ciel = self.hlavne_okno.oznacenie_uhlika
         else:
             return
         if not self.hlavne_okno.zvoleny_ciel == novy_ciel:
