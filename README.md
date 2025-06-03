@@ -19,3 +19,6 @@ Tento program bol vytvorený ako súčasť diplomovej práce na tému predikcie 
 - matplotlib
 - pandas
 - sklearn
+
+Odkaz na Git:
+https://github.com/BlueScreenOfREKT/predikcia-teploty-uhlika
