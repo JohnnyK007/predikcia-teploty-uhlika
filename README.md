@@ -22,3 +22,24 @@ Tento program bol vytvorený ako súčasť diplomovej práce na tému predikcie 
 
 Odkaz na Git:
 https://github.com/BlueScreenOfREKT/predikcia-teploty-uhlika
+
+Okno aplikácie po načítaní dát statických dát a nameraného cieľa predikcie:
+![image](./Obrázok1.png)
+
+Výsledok predikcie na statických a dynamických pozorovaniach:
+
+Predikcia teploty modelom SVR (rbf) na statických dátach:
+
+Predikcia teploty modelom SVR (poly) na statických dátach:
+
+Predikcia teploty modelom RF na statických dátach:
+
+Predikcia teploty modelom MLP na statických dátach.
+
+Predikcia teploty a uhlíka modelom SVR (rbf) na statických aj dynamických pozorovaniach.
+
+Predikcia teploty a uhlíka modelom SVR (poly) na statických aj dynamických pozorovaniach.
+
+Predikcia teploty a uhlíka modelom RF na statických aj dynamických pozorovaniach.
+
+Predikcia teploty a uhlíka modelom MLP na statických aj dynamických pozorovaniach.
